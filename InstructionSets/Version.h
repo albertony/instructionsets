@@ -1,0 +1,21 @@
+// Version numbers, used in resource file and in source.
+
+#ifdef _WIN64
+#define VERSION_PLATFORM_STRING "x64"
+#else
+#define VERSION_PLATFORM_STRING "x86"
+#endif
+
+#if _DEBUG
+#define VERSION_CONFIGURATION_STRING "Debug"
+#else
+#define VERSION_CONFIGURATION_STRING "Release"
+#endif
+
+#define VERSION_MAJOR 1
+#define VERSION_MINOR 0
+#define VERSION_PATCH 0
+#define VERSION_BUILD 0
+#define VERSION_STRING "1.0.0 (" VERSION_PLATFORM_STRING " " VERSION_CONFIGURATION_STRING ")"
+#define VERSION_PRODUCT_STRING "1.0.0 (" VERSION_PLATFORM_STRING " " VERSION_CONFIGURATION_STRING ")"
+
