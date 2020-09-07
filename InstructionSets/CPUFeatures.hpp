@@ -63,7 +63,7 @@ static bool check_cpu_feature_support(cpu_feature_id cpu_feature, std::uint64_t 
 static bool check_cs_group_cpu_support(uint8_t group_id, std::uint64_t cpu_features)
 {
 	// Making assumptions on the enumeration like Capstone code does skip invalid groups the same way as X86_group_name function does.
-	if (group_id <= X86_GRP_INVALID || group_id >= X86_GRP_ENDING || (group_id > X86_GRP_IRET && group_id < X86_GRP_VM)) // Invalid groups (before first generic, after last architecture-specific or between last generic and first architecture-specific)
+	if (group_id <= X86_GRP_INVALID || group_id >= X86_GRP_ENDING || (group_id > X86_GRP_BRANCH_RELATIVE && group_id < X86_GRP_VM)) // Invalid groups (before first generic, after last architecture-specific or between last generic and first architecture-specific)
 		return false; // Report invalid groups as unsupported?
 	if (group_id < X86_GRP_VM) // Generic groups
 		return true; // Report generic groups as supported
@@ -96,7 +96,7 @@ static std::uint64_t get_current_cpu_features()
 	__cpuid(cpu_info, function_id);
 	cpu_features |= (std::uint64_t)((cpu_info[ECX] & 1 <<  5) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_VM);		// ECX bit 5 indicates Virtual Machine eXtensions (Intel VT-x and AMD-V)
 	cpu_features |= (std::uint64_t)((cpu_info[ECX] & 1 << 25) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_AES);		// ECX bit 25 indicates Advanced Encryption Standard
-	cpu_features |= (std::uint64_t)((cpu_info[ECX] & 1 << 28) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_AVX);		// ECX bit 25 indicates Advanced Vector Extensions
+	cpu_features |= (std::uint64_t)((cpu_info[ECX] & 1 << 28) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_AVX);		// ECX bit 28 indicates Advanced Vector Extensions
 	cpu_features |= (std::uint64_t)((cpu_info[EDX] & 1 << 15) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_CMOV);		// EDX bit 15 indicates Conditional move and FCMOV instructions
 	cpu_features |= (std::uint64_t)((cpu_info[ECX] & 1 << 29) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_F16C);		// ECX bit 15 indicates F16C (half-precision) FP support
 	cpu_features |= (std::uint64_t)((cpu_info[ECX] & 1 << 12) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_FMA);		// ECX bit 12 indicates Fused multiply-add (FMA3)
@@ -108,6 +108,7 @@ static std::uint64_t get_current_cpu_features()
 	cpu_features |= (std::uint64_t)((cpu_info[ECX] & 1 << 19) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_SSE41);	// ECX bit 19 indicates Streaming SIMD Extensions 4 subset 1
 	cpu_features |= (std::uint64_t)((cpu_info[ECX] & 1 << 20) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_SSE42);	// ECX bit 20 indicates Streaming SIMD Extensions 4 subset 2
 	cpu_features |= (std::uint64_t)((cpu_info[ECX] & 1 <<  1) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_PCLMUL);	// ECX bit 1 indicates Carry-less Multiplication (CLMUL) support
+	cpu_features |= (std::uint64_t)((cpu_info[EDX] & 1 <<  0) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_FPU);		// EDX bit 0 indicates Floating-point Unit On-Chip
 
 	// Function id 7 contains bitset with flags for extended features
 	function_id = 7;
@@ -129,8 +130,26 @@ static std::uint64_t get_current_cpu_features()
 	cpu_features |= (std::uint64_t)((cpu_info[EBX] & 1 << 27) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_ERI);		// EBX bit 27 indicates AVX-512-ER (AVX-512 Exponential and Reciprocal)
 	cpu_features |= (std::uint64_t)((cpu_info[EBX] & 1 << 28) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_CDI);		// EBX bit 28 indicates AVX-512-CD (AVX-512 Conflict Detection)
 	cpu_features |= (std::uint64_t)((cpu_info[EBX] & 1 << 30) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_BWI);		// EBX bit 30 indicates AVX-512-BW (AVX-512 Byte and Word)
-	cpu_features |= (std::uint64_t)((cpu_info[EBX] & 1 << 31) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_VLX);		// EBX bit 31 indicates AVX-512-VL (AVX-512 Vector Length). NB: See comment below regarding X86_GRP_VLX and X86_GRP_NOVLX!
 	cpu_features |= (std::uint64_t)((cpu_info[EBX] & 1 << 17) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_DQI);		// EBX bit 17 indicates AVX-512-DQ (AVX-512 Doubleword and Quadword)
+
+	// Special handling for EBX bit 31 indicating AVX-512-VL (AVX-512 Vector Length).
+	// AVX-512-VL (AVX-512 Vector Length) adds new versions of existing AVX-512 instructions.
+	// AVX-512 includes instructions that can operate on 512-bit registers, but the
+	// Vector Length Extensions (VLE) is a feature, categorized as an orthogonal feature,
+	// that lets applications use most of the same instructions on shorter vector lengths.
+	// Capstone adds additional group ids X86_GRP_VLX or X86_GRP_NOVLX to indicate this, and
+	// seems to use them as following: Instructions in group X86_GRP_VLX are also in either group
+	// X86_GRP_BWI (AVX-512-BW) or X86_GRP_AVX512 (AVX-512F), while instructions in group
+	// X86_GRP_NOVLX are also in group X86_GRP_AVX.
+	// Here we simply check the AVX-512-VL feature of the CPU, and if set then flag the
+	// X86_GRP_VLX instruction group as supported, else flag the X86_GRP_NOVLX instruction group
+	// as supported (which should work out fine due to the logic described above, without
+	// checking if AVX or AVX-512 features are supported).
+	// Updated for Capstone version 4.0.2, where running the application checking its own binary
+	// reports instruction group novlx being used, together with avx and avx2 (but not avx512),
+	// while previous version did not report novlx in this case!
+	bool vlxMode = (std::uint64_t)((cpu_info[EBX] & 1 << 31) != 0);
+	cpu_features |= (std::uint64_t)(1) << cs_group_id_to_cpu_feature_id(vlxMode ? X86_GRP_VLX : X86_GRP_NOVLX);
 
 	// Extended functions
 	// These are in a separate id sequence above above INT32_MAX (2147483647), so represented in a singed 
@@ -146,11 +165,12 @@ static std::uint64_t get_current_cpu_features()
 	if (function_id > max_extended_function_id)
 		return cpu_features;
 	__cpuid(cpu_info, function_id);
-	cpu_features |= (std::uint64_t)((cpu_info[EDX] & 1 << 31) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_3DNOW);		// EDX bit 31 indicates 3D Now!
+	cpu_features |= (std::uint64_t)((cpu_info[EDX] & 1 << 31) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_3DNOW);	// EDX bit 31 indicates 3D Now!
 	cpu_features |= (std::uint64_t)((cpu_info[ECX] & 1 << 16) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_FMA4);		// ECX bit 12 indicates 4 operands fused multiply-add
-	cpu_features |= (std::uint64_t)((cpu_info[ECX] & 1 <<  6) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_SSE4A);		// ECX bit 6 indicates Streaming SIMD Extensions 4 subset a
-	cpu_features |= (std::uint64_t)((cpu_info[ECX] & 1 << 11) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_XOP);			// ECX bit 11 indicates eXtended Operations
-	cpu_features |= (std::uint64_t)((cpu_info[ECX] & 1 << 21) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_TBM);			// ECX bit 21 indicates Trailing Bit Manipulation
+	cpu_features |= (std::uint64_t)((cpu_info[ECX] & 1 <<  6) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_SSE4A);	// ECX bit 6 indicates Streaming SIMD Extensions 4 subset a
+	cpu_features |= (std::uint64_t)((cpu_info[ECX] & 1 << 11) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_XOP);		// ECX bit 11 indicates eXtended Operations
+	cpu_features |= (std::uint64_t)((cpu_info[ECX] & 1 << 21) != 0) << cs_group_id_to_cpu_feature_id(X86_GRP_TBM);		// ECX bit 21 indicates Trailing Bit Manipulation
+
 	// Special handling for EDX bit 29: It indicates Long mode, which means a 64-bit
 	// operating system can access 64-bit instructions and registers.
 	// This tells us we have an x86-64/AMD64 processor, which can run in either
@@ -163,11 +183,6 @@ static std::uint64_t get_current_cpu_features()
 		cpu_features |= (std::uint64_t)(1) << cs_group_id_to_cpu_feature_id(X86_GRP_MODE32); // TODO: Regular 32-bit instructions that can run on any x86?
 		cpu_features |= (std::uint64_t)(1) << cs_group_id_to_cpu_feature_id(X86_GRP_NOT64BITMODE); // TODO: Some instructions that can only run on pure 32-bit x86?
 	}
-	// TODO: AVX-512-VL (AVX-512 Vector Length) adds new versions of existing instructions.
-	//       Capstone adds additional group ids X86_GRP_VLX or X86_GRP_NOVLX to indicate
-	//       this, and seems to do the following: Instructions in group X86_GRP_VLX are also
-	//       in either group X86_GRP_BWI or X86_GRP_AVX512, while instructions in group
-	//       X86_GRP_NOVLX are also in group X86_GRP_AVX. So above we check AVX-512-VL
-	//       feature for the X86_GRP_VLX group and just ignore X86_GRP_NOVLX...
+
 	return cpu_features;
 }
