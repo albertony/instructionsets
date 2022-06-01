@@ -127,3 +127,9 @@ Based on the following sources:
 * https://msdn.microsoft.com/en-us/library/windows/desktop/ms680547
 * https://msdn.microsoft.com/en-us/library/ms809762.aspx
 * https://msdn.microsoft.com/en-us/magazine/bb985992.aspx
+
+## License
+
+This is free software under the terms of the MIT license (check the [LICENSE](LICENSE) file for details).
+
+Note that the included [Capstone](https://github.com/aquynh/capstone) source has its own license (check the [Capstone/LICENSE.TXT](Capstone/LICENSE.TXT) file for details).
