@@ -81,11 +81,12 @@ created by by [Nguyen Anh Quynh](https://github.com/aquynh), developed and maint
 It is a disassembly framework with the target of becoming the ultimate disasm engine for
 binary analysis and reversing in the security community.
 
-I'm including only parts of the source code necessary for my use case. Here is what i do:
+I'm including only parts of the source code necessary for my use case. Here is what I do:
 * Download latest version of source code from https://github.com/aquynh/capstone.
 * Extract source files (\*.h;\*.c) and LICENSE.TXT from root folder.
 * Extract folders "arch/X86" and "include/capstone".
 * Extract project file msvc\capstone_static\capstone_static.vcxproj into root folder.
+* Edit file cs.c: Comment out includes of all "arch/" except "arch/X86/X86Module.h".
 * Edit project file capstone_static.vcxproj:
     * Remove all file references to files in subfolders of "arch", except "arch\X86".
     * Fix relative paths (remove "..\\..").
@@ -118,7 +119,7 @@ explored this functionality.
 There is also an implementation of a simple parser of Windows executable (image) files,
 also known as Portable Executable (PE) files. It is by no means a complete parser,
 for example it does not consider object files or other Common Object File Format (COFF) files,
-but it has worked for my usage so far. It i used by the command line utility
+but it has worked for my usage so far. It is used by the command line utility
 when user specifies path to an executable file as argument, then it parses the PE
 file to fetch the binary data where the executable code is contained, which is then
 supplied to the disassembler.
