@@ -36,15 +36,16 @@ void show_usage(wchar_t* argv[])
 			"\tCheck features, instruction sets, supported by the current CPU.\n"
 			"\tsupported:\tOnly list instruction sets.\n"
 			"\tunsupported:\tOnly list unsupported sets.\n"
-		"%s filename [-cpu|-c] [-supported|-s] [-unsupported|-u]\n"
+		"%s filename [-cpu|-c] [-supported|-s]|[-unsupported|-u]\n"
 			"\tDisassemble executable file and list names of unique instruction sets.\n"
 			"\tfilename:\tName of executable file, optionally with absolute or\n\t\t\trelative path.\n"
 			"\tcpu:\t\tVerify if the identified instruction sets are supported\n\t\t\tby the CPU on the current machine.\n"
 			"\tsupported:\tList supported instruction sets only (implied -cpu).\n"
 			"\tunsupported:\tList only instruction sets not supported (implied -cpu).\n"
-		"%s filename -instructions|-i [-verbose|-v]\n"
+		"%s filename -instructions|-i [-groups|-g] [-verbose|-v]\n"
 			"\tDisassemble executable file and list all instructions.\n"
 			"\tinstructions:\tList name of all instructions.\n"
+			"\tgroups:\t\tShow instruction sets each instruction is member of.\n"
 			"\tverbose:\tShow address and operands, in addition to the\n\t\t\tinstruction name.\n"
 		"\n"
 		"Samples:\n"
@@ -58,9 +59,11 @@ void show_usage(wchar_t* argv[])
 			"\tReport all instruction sets for specified file, and warn about any\n\tunsupported.\n"
 		"%s somefile.dll -c -u\n"
 			"\tList any unsupported instruction sets for the specified file on the\n\tcurrent machine.\n"
-		"%s somefile.dll -i -v\n"
-			"\tList verbosely all instructions from the specified file.\n"
-		, VERSION_STRING, exe_name, exe_name, exe_name, exe_name, exe_name, exe_name, exe_name, exe_name, exe_name, exe_name);
+		"%s somefile.dll -i -g\n"
+			"\tList all instructions and their instruction groups from the\n\tspecified file.\n"
+		"%s somefile.dll -i -g -v\n"
+			"\tList all instructions, with address and operands, and their\n\tinstruction sets (groups), from the specified file.\n"
+		, VERSION_STRING, exe_name, exe_name, exe_name, exe_name, exe_name, exe_name, exe_name, exe_name, exe_name, exe_name, exe_name);
 }
 bool is_option(const wchar_t* arg)
 {
@@ -105,8 +108,15 @@ int wmain(int argc, wchar_t* argv[])
 		// Run Capstone dissassebler on executable code and report results on stdout (errors on stderr).
 		if (argc > 2 && match_option(argv[2], L"instructions", L"i")) {
 			// Report all individual instructions
-			bool verbose = argc > 3 && match_option(argv[3], L"verbose", L"v");
-			disasm_instructions_to_stream(stdout, code, code_size, mode, verbose);
+			bool show_instruction_sets = argc > 3 && match_option(argv[3], L"groups", L"g");
+			bool show_address_and_operands = false;
+			if (show_instruction_sets) {
+				show_address_and_operands = argc > 4 && match_option(argv[4], L"verbose", L"v");
+			}
+			else {
+				show_address_and_operands = argc > 3 && match_option(argv[3], L"verbose", L"v");
+			}
+			disasm_instructions_to_stream(stdout, code, code_size, mode, show_instruction_sets, show_address_and_operands);
 		} else {
 			// Report unique instruction sets, what Capstone calls semantic groups
 			bool check_cpu = false;

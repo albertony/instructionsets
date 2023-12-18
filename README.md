@@ -16,13 +16,13 @@ The utility includes the following components:
 Usage:
 
 ```
--help|-h|-?
+InstructionSets[32|64][d].exe -help|-h|-?
     Show this help text.
 InstructionSets[32|64][d].exe [-supported|-s]|[-unsupported|-u]
     Check features, instruction sets, supported by the current CPU.
     supported:    Only list instruction sets.
     unsupported:  Only list unsupported sets.
-InstructionSets[32|64][d].exe filename [-cpu|-c] [-supported|-s] [-unsupported|-u]
+InstructionSets[32|64][d].exe filename [-cpu|-c] [-supported|-s]|[-unsupported|-u]
     Disassemble executable file and list names of unique instruction sets.
     filename:     Name of executable file, optionally with absolute or
                   relative path.
@@ -30,9 +30,10 @@ InstructionSets[32|64][d].exe filename [-cpu|-c] [-supported|-s] [-unsupported|-
                   by the CPU on the current machine.
     supported:    List supported instruction sets only (implied -cpu).
     unsupported:  List only instruction sets not supported (implied -cpu).
-InstructionSets[32|64][d].exe filename -instructions|-i [-verbose|-v]
+InstructionSets[32|64][d].exe filename -instructions|-i [-groups|-g] [-verbose|-v]
     Disassemble executable file and list all instructions.
     instructions: List name of all instructions.
+    groups:       Show instruction sets each instruction is member of.
     verbose:      Show address and operands, in addition to the
                   instruction name.
 ```
@@ -52,8 +53,12 @@ InstructionSets[32|64][d].exe somefile.dll -c
 InstructionSets[32|64][d].exe somefile.dll -c -u
     List any unsupported instruction sets for the specified file on the
     current machine.
-InstructionSets[32|64][d].exe somefile.dll -i -v
-    List verbosely all instructions from the specified file.
+InstructionSets[32|64][d].exe somefile.dll -i -g
+    List all instructions and their instruction groups from the
+    specified file.
+InstructionSets[32|64][d].exe somefile.dll -i -g -v
+    List all instructions, with address and operands, and their
+    instruction sets (groups), from the specified file.
 ```
 
 ## Alternatives
@@ -64,10 +69,12 @@ can also be used to list instructions in an executable, as well as other informa
 What it does not do, is to classify the instructions into instruction sets, which is
 a key for matching it against supported CPU features.
 
-Example of a powershell expression that uses dumpbin to list name of all instructions:
+Example of a powershell expression that uses dumpbin to list name of all instructions
+(`-Pattern '.{39}...` assumes 64-bit executable, for 32-bit executable change to
+`-Pattern '.{29}`):
 
 ```
-&"C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Tools\MSVC\14.16.27023\bin\Hostx64\x64\dumpbin.exe" /NOLOGO /DISASM mylibrary.dll | Select-Object -Skip 5 | Select-String -Pattern '.{39}(?<instruction>\b.+?\b)' | % { $_.Matches[0].Groups["instruction"].Value.Trim() } | ? { ![string]::IsNullOrEmpty($_) }
+&"C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\MSVC\14.38.33130\bin\Hostx64\x64\dumpbin.exe" /NOLOGO /DISASM mylibrary.dll | Select-Object -Skip 5 | Select-String -Pattern '.{39}(?<instruction>\b.+?\b)' | % { $_.Matches[0].Groups["instruction"].Value.Trim() } | ? { ![string]::IsNullOrEmpty($_) }
 ```
 
 See:

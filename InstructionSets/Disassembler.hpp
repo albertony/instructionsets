@@ -76,13 +76,15 @@ static void disasm_check_cpu_features(std::FILE* out, bool filter_supported, boo
 // Disassembling a byte buffer with code, write name of all instructions to the supplied
 // stream handle, throw exception if error.
 //
-static void disasm_instructions_to_stream(std::FILE* out, std::uint8_t* code, std::size_t code_size, cs_mode mode, bool verbose)
+static void disasm_instructions_to_stream(std::FILE* out, std::uint8_t* code, std::size_t code_size, cs_mode mode, bool show_instruction_sets, bool show_address_and_operands)
 {
 	csh handle;
 	if (cs_open(CS_ARCH_X86, mode, &handle) != CS_ERR_OK) {
 		throw std::runtime_error("Initializing Capstone disassembler library failed");
 	}
-	//cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON); // No, we don't need the detailed output from Capstone just to list the instructions
+	if (show_instruction_sets) {
+		cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON); // We need the detailed output from Capstone to get instruction groups, but not to just to list the instructions
+	}
 	cs_option(handle, CS_OPT_SKIPDATA, CS_OPT_ON); // Don't stop disassembling when encountering something that is not an instruction, because when disassembling the code section of a PE file it normally contains data mixed with instructions. Capstone recommends that the caller finds where the next instruction is and restarts the disassembler from that place, but for simplicity we just enable the SKIPDATA mode where Capstone tries its best to determine where the next instruction is and continue automatically.
 	cs_insn *insn;
 	std::size_t n_insn = cs_disasm(handle, code, code_size, 0, 0, &insn);
@@ -91,8 +93,44 @@ static void disasm_instructions_to_stream(std::FILE* out, std::uint8_t* code, st
 		throw std::runtime_error("Disassembler found no instructions");
 	}
 	for (std::size_t i = 0; i < n_insn; ++i) {
-		if (verbose) {
-			wprintf_s(L"0x%" PRIx64 L":\t%hs\t\t%hs\n", insn[i].address, insn[i].mnemonic, insn[i].op_str);
+		if (show_address_and_operands) {
+			wprintf_s(L"0x%" PRIx64 L":\t%hs (%hs)", insn[i].address, insn[i].mnemonic, insn[i].op_str);
+			if (show_instruction_sets && insn[i].detail->groups_count > 0) {
+				int counter = 0;
+				for (std::size_t j = 0; j < insn[i].detail->groups_count; ++j) {
+					const char* group_name = cs_group_name(handle, insn[i].detail->groups[j]);
+					if (group_name) {
+						if (counter == 0) {
+							wprintf_s(L": ");
+						} else {
+							wprintf_s(L", ");
+						}
+						wprintf_s(L"%hs", group_name);
+						++counter;
+					}
+				}
+			}
+			wprintf_s(L"\n");
+		}
+		else if (show_instruction_sets) {
+			wprintf_s(L"%hs", insn[i].mnemonic);
+			if (insn[i].detail->groups_count > 0) {
+				int counter = 0;
+				for (std::size_t j = 0; j < insn[i].detail->groups_count; ++j) {
+					const char* group_name = cs_group_name(handle, insn[i].detail->groups[j]);
+					if (group_name) {
+						if (counter == 0) {
+							wprintf_s(L": ");
+						}
+						else {
+							wprintf_s(L", ");
+						}
+						wprintf_s(L"%hs", group_name);
+						++counter;
+					}
+				}
+			}
+			wprintf_s(L"\n");
 		}
 		else {
 			wprintf_s(L"%hs\n", insn[i].mnemonic);
